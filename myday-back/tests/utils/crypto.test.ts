@@ -1,0 +1,2 @@
+describe('POST /api/register', () => {
+});

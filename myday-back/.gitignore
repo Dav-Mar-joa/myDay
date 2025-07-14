@@ -1,0 +1,4 @@
+**/node_modules/*
+**/dist/*
+**/*.env
+!template.env
