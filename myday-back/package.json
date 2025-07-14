@@ -1,0 +1,43 @@
+{
+  "name": "myday-back",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "dev": "node --env-file=dev.env -r ts-node/register ./src/index.ts",
+    "start:prod": "node --env-file=prod.env dist/index.js",
+    "start:dev": "node --env-file=dev.env dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "express": "^4.0.0",
+    "express-session": "^1.18.1",
+    "mongoose": "^8.15.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.0.0",
+    "@types/express-session": "^1.18.1",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.21",
+    "@types/supertest": "^6.0.3",
+    "esbuild": "^0.25.4",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.1",
+    "ts-jest": "^29.3.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -17,9 +17,7 @@ dotenv.config();
 const app = express();
 app.use(cookieParser());
 
-app.use((req, res, next) => {
-  next();
-});
+;
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -27,10 +25,8 @@ app.use(express.json());
 const cors = require('cors');
 
 app.use(cors({
-  origin: "https://myday-20rg.onrender.com",
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  origin: 'http://localhost:3030', // frontend URL
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,16 +37,10 @@ const sessionMiddleware = session({
     secret: process.env.JWT_SECRET || 'default-secret',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: process.env.MONGODB_URI,
-        dbName: 'myDay', 
-        collectionName: 'production',
-    }),
     cookie: {
-        secure: false, // Mettre true en production avec HTTPS
-        // httpOnly: true,
-        // sameSite: 'None',
-        maxAge: 30*24 * 60 * 60 * 1000, // Durée de vie des cookies (30 jour ici)
+      secure: false,        
+      httpOnly: true,
+      sameSite: 'lax'   
     },
 });
 
