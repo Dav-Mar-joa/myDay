@@ -1,2 +1,0 @@
-describe('POST /api/register', () => {
-});

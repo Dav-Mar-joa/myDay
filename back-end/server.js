@@ -10,14 +10,16 @@ const session = require('express-session');
 const bcryptjs = require('bcryptjs');
 const MongoStore = require('connect-mongo');
 const isAuthenticated = require('./middleware/auth');
-const {encrypt, decrypt, hashed} = require('./utils/cryptOutils')
+const { encrypt, decrypt, hashed } = require('./utils/cryptOutils')
 
 dotenv.config();
 
 const app = express();
 app.use(cookieParser());
 
-;
+app.use((req, res, next) => {
+  next();
+});
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -25,8 +27,10 @@ app.use(express.json());
 const cors = require('cors');
 
 app.use(cors({
-  credentials: true,
-  origin: 'http://localhost:3030', // frontend URL
+  origin: "https://myday-20rg.onrender.com",
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -34,14 +38,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1)
 
 const sessionMiddleware = session({
-    secret: process.env.JWT_SECRET || 'default-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: false,        
-      httpOnly: true,
-      sameSite: 'lax'   
-    },
+  secret: process.env.JWT_SECRET || 'default-secret',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    dbName: 'myDay',
+    collectionName: 'production',
+  }),
+  cookie: {
+    secure: false, // Mettre true en production avec HTTPS
+    // httpOnly: true,
+    // sameSite: 'None',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // Durée de vie des cookies (30 jour ici)
+  },
 });
 
 app.use(sessionMiddleware);
@@ -63,7 +73,7 @@ if (process.env.NODE_ENV === 'production') {
 
   app.get('/', isAuthenticated, (req, res) => {
     const theme = req.session.user?.theme || 'colorful';
-    console.log("dans home ->>>>>> :",theme)
+    console.log("dans home ->>>>>> :", theme)
     res.render('index', { user: req.session.user, theme });
   });
 
@@ -77,87 +87,87 @@ if (process.env.NODE_ENV === 'production') {
     const theme = req.session.user?.theme || 'colorful';
 
     if (!req.session.user) {
-        return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
+      return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
     }
     const phraseGratitudeEncrypted = phraseGratitude ? encrypt(phraseGratitude) : "";
 
     try {
-        // Cherche l'utilisateur connecté
-        const user = await User.findById(req.session.user._id);
-        if (!user) {
-            return res.status(404).json({ message: 'Utilisateur non trouvé' });
-        }
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const localDate = new Date().toLocaleString("sv-SE", { timeZone: timezone }); // format ISO-like
+      // Cherche l'utilisateur connecté
+      const user = await User.findById(req.session.user._id);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const localDate = new Date().toLocaleString("sv-SE", { timeZone: timezone }); // format ISO-like
 
-        // Convertir en vrai objet Date
-        const userLocalDate = new Date(localDate);
-        // Ajoute la réponse au tableau `responses`
-        console.log("je suis avant insert MongoDB")
-        user.responses.push({
-            feeling1:feeling1Encrypted,
-            // feeling1,
-            feeling2:feeling2Encrypted,
-            feeling3:feeling3Encrypted,
-            feeling4:feeling4Encrypted,
-            phraseGratitude: phraseGratitudeEncrypted || "",
-            regle:regleEncrypted,
-            // regle,
-            timezone: timezone,
-            userLocalDate: userLocalDate.toISOString() // envoyer une date valide
+      // Convertir en vrai objet Date
+      const userLocalDate = new Date(localDate);
+      // Ajoute la réponse au tableau `responses`
+      console.log("je suis avant insert MongoDB")
+      user.responses.push({
+        feeling1: feeling1Encrypted,
+        // feeling1,
+        feeling2: feeling2Encrypted,
+        feeling3: feeling3Encrypted,
+        feeling4: feeling4Encrypted,
+        phraseGratitude: phraseGratitudeEncrypted || "",
+        regle: regleEncrypted,
+        // regle,
+        timezone: timezone,
+        userLocalDate: userLocalDate.toISOString() // envoyer une date valide
 
-        });
+      });
 
-        // console.log("user.responses",user.responses)
+      // console.log("user.responses",user.responses)
 
-        // Sauvegarde dans la DB
-        await user.save();
+      // Sauvegarde dans la DB
+      await user.save();
 
-        // console.log("Réponse enregistrée pour l'utilisateur :", user.pseudo);
+      // console.log("Réponse enregistrée pour l'utilisateur :", user.pseudo);
 
-        res.json({ message: "Réponse enregistrée avec succès" });
+      res.json({ message: "Réponse enregistrée avec succès" });
     } catch (err) {
-        console.error("Erreur lors de l'enregistrement de la réponse :", err);
-        res.status(500).json({ message: "Erreur serveur lors de l'enregistrement" });
+      console.error("Erreur lors de l'enregistrement de la réponse :", err);
+      res.status(500).json({ message: "Erreur serveur lors de l'enregistrement" });
     }
   });
-  
+
   app.get('/Login', async (req, res) => {
-      res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
+    res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
   });
 
   app.post('/Login', async (req, res) => {
     const { pseudo, password } = req.body;
     try {
-        const userLogged = await User.findOne({ pseudo });
+      const userLogged = await User.findOne({ pseudo });
 
-        if (!userLogged) {
-          return res.status(400).json({ errorMessage: "Login ou mot de passe erroné !" });
-        }
+      if (!userLogged) {
+        return res.status(400).json({ errorMessage: "Login ou mot de passe erroné !" });
+      }
 
-        const isMatch = await bcryptjs.compare(password, userLogged.password);
-        if (!isMatch) {
-            return res.status(400).json({ errorMessage: "Login ou mot de passe erroné !" });
-        }
+      const isMatch = await bcryptjs.compare(password, userLogged.password);
+      if (!isMatch) {
+        return res.status(400).json({ errorMessage: "Login ou mot de passe erroné !" });
+      }
 
-        // Créer la session utilisateur
-        req.session.user = {
-            _id: userLogged._id,
-            username: userLogged.pseudo,
-        };
+      // Créer la session utilisateur
+      req.session.user = {
+        _id: userLogged._id,
+        username: userLogged.pseudo,
+      };
 
-        // Redirection
-        if (userLogged.isAdmin === "y") {
-            console.log("Utilisateur admin connecté");
-            return res.redirect('/admin');
-        } else {
-            return res.json({ success: true, redirectUrl: '/' });
+      // Redirection
+      if (userLogged.isAdmin === "y") {
+        console.log("Utilisateur admin connecté");
+        return res.redirect('/admin');
+      } else {
+        return res.json({ success: true, redirectUrl: '/' });
 
-        }
+      }
 
     } catch (err) {
-        console.error("Erreur lors de la connexion :", err);
-        res.status(500).send("Erreur lors de la connexion");
+      console.error("Erreur lors de la connexion :", err);
+      res.status(500).send("Erreur lors de la connexion");
     }
   });
 
@@ -165,8 +175,8 @@ if (process.env.NODE_ENV === 'production') {
     if (req.session.user) {
       const pseudo = req.session.user.username
       try {
-      const user= await User.findOne({ pseudo: pseudo })
-      return res.json({ authenticated: true, user: req.session.user,theme:user.theme });
+        const user = await User.findOne({ pseudo: pseudo })
+        return res.json({ authenticated: true, user: req.session.user, theme: user.theme });
       } catch (err) {
         console.error("Erreur lors de la connexion :", err);
         res.status(500).send("Erreur lors de la connexion");
@@ -177,73 +187,72 @@ if (process.env.NODE_ENV === 'production') {
   });
 
   app.get('/Register', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
-  console.log("dans /Register")
+    res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
+    console.log("dans /Register")
   });
 
   app.post('/Register', async (req, res) => {
-    const { pseudo, password, feelings,mail,phraseRegister } = req.body;
-    const theme= req.body.theme || "colorful";
+    const { pseudo, password, feelings, mail, phraseRegister } = req.body;
+    const theme = req.body.theme || "colorful";
     const feeling1Encrypted = []
     feeling1Encrypted[0] = feelings[0] ? encrypt(feelings[0]) : "";
     feeling1Encrypted[1] = feelings[1] ? encrypt(feelings[1]) : "";
     feeling1Encrypted[2] = feelings[2] ? encrypt(feelings[2]) : "";
     feeling1Encrypted[3] = feelings[3] ? encrypt(feelings[3]) : "";
     const mailHashed = mail ? hashed(mail) : "";
-    const mailHash=encrypt(mail)
-    phraseRegisterEncrypted= phraseRegister ? encrypt(phraseRegister) :"";
+    const mailHash = encrypt(mail)
+    phraseRegisterEncrypted = phraseRegister ? encrypt(phraseRegister) : "";
     const passwordHashed = await bcryptjs.hash(password, 10);
-    const pseudoExist = await User.findOne({pseudo})
-    const mailExist = await User.findOne({mail:mailHashed})
+    const pseudoExist = await User.findOne({ pseudo })
+    const mailExist = await User.findOne({ mail: mailHashed })
 
-    if(pseudoExist){
+    if (pseudoExist) {
       return res.status(409).json({ success: false, message: 'Pseudo déjà utilisé' });
     }
-    else if (mailExist){
+    else if (mailExist) {
       return res.status(409).json({ success: false, message: 'Email déjà utilisé' });
     }
-      else
-    {
+    else {
       const newUser = new User({
-          pseudo,
-          password:passwordHashed,
-          feelings:feeling1Encrypted,
-          mail:mailHashed,
-          // mail:mail,
-          mailHash:mailHash,
-          theme:theme || 'colorful',
-          phraseRegister:phraseRegisterEncrypted
+        pseudo,
+        password: passwordHashed,
+        feelings: feeling1Encrypted,
+        mail: mailHashed,
+        // mail:mail,
+        mailHash: mailHash,
+        theme: theme || 'colorful',
+        phraseRegister: phraseRegisterEncrypted
       });
-    console.log("new user :",newUser)
-    try {
+      console.log("new user :", newUser)
+      try {
         // Enregistrement dans la base de données
         await newUser.save();
         console.log('Utilisateur enregistré avec succès !');
         res.status(201).json({ message: 'Utilisateur créé avec succès' });
-    } catch (err) {
+      } catch (err) {
         console.error('Erreur lors de l\'enregistrement de l\'utilisateur :', err);
         res.status(500).json({ message: 'Erreur lors de l\'enregistrement' });
+      }
     }
-    }  
   });
 
   app.get('/Historique', (req, res) => {
-    if(req.session.user)
+    if (req.session.user)
       res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
     console.log("dans /Emotions")
   });
 
   app.get('/Emotions', (req, res) => {
-      res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
+    res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
   });
 
   app.get('/EmotionsSettings', (req, res) => {
-      if(req.session.user)
-        res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
+    if (req.session.user)
+      res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
   });
 
   app.get('/DelUser', (req, res) => {
-    if(req.session.user)
+    if (req.session.user)
       res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
   });
 
@@ -251,8 +260,8 @@ if (process.env.NODE_ENV === 'production') {
     const userDel = req.session.user;
 
     try {
-      const user = await User.findOne({ pseudo: userDel.username});
-      console.log("user dans del : ",user)
+      const user = await User.findOne({ pseudo: userDel.username });
+      console.log("user dans del : ", user)
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
@@ -264,85 +273,85 @@ if (process.env.NODE_ENV === 'production') {
       res.status(500).json({ message: 'Erreur lors de la suppression' });
     }
   })
- 
+
   app.get('/Identifiants', (req, res) => {
-      res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
-  }); 
+    res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
+  });
 
   app.get('/IdentifiantsMdp', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
-  }); 
+  });
 
   app.post('/IdentifiantsMdp', async (req, res) => {
     const { pseudo, phraseRegister, newPassword } = req.body;
     try {
-        const user = await User.findOne({ pseudo });
-        
-        if (!user) {
-            return res.status(404).json({ message: 'Utilisateur non trouvé' });
-        }
+      const user = await User.findOne({ pseudo });
 
-        const decryptedPhrase = decrypt(user.phraseRegister); // Décryptage de la phrase enregistrée
-        if (decryptedPhrase !== phraseRegister) {
-            return res.status(400).json({ message: 'Utilisateur non trouvé' });
-        }
-        console.log("nouveaupassword : ",newPassword)
-        // Hashage du nouveau mot de passe
-        const passwordHashed = await bcryptjs.hash(newPassword, 10);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
 
-        // Mise à jour du mot de passe dans la base de données
-        user.password = passwordHashed;
-        await user.save();
+      const decryptedPhrase = decrypt(user.phraseRegister); // Décryptage de la phrase enregistrée
+      if (decryptedPhrase !== phraseRegister) {
+        return res.status(400).json({ message: 'Utilisateur non trouvé' });
+      }
+      console.log("nouveaupassword : ", newPassword)
+      // Hashage du nouveau mot de passe
+      const passwordHashed = await bcryptjs.hash(newPassword, 10);
 
-        res.status(200).json({ message: 'Mot de passe réinitialisé avec succès' });
+      // Mise à jour du mot de passe dans la base de données
+      user.password = passwordHashed;
+      await user.save();
+
+      res.status(200).json({ message: 'Mot de passe réinitialisé avec succès' });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
+      console.error(err);
+      res.status(500).json({ message: 'Erreur lors de la réinitialisation du mot de passe' });
     }
   });
 
   app.get('/IdentifiantsPseudo', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
-  }); 
+  });
 
-  app.post("/IdentifiantsPseudo", async (req,res)=>{
+  app.post("/IdentifiantsPseudo", async (req, res) => {
     console.log("dans recuperation du login")
-    const {mail,password}=req.body
-    const mailHashed=mail ? hashed(mail):""
+    const { mail, password } = req.body
+    const mailHashed = mail ? hashed(mail) : ""
     try {
-      const user = await User.findOne({mail:mailHashed});
+      const user = await User.findOne({ mail: mailHashed });
       const isMatch = await bcryptjs.compare(password, user.password);
-      if(isMatch){
+      if (isMatch) {
         res.json({ success: true, pseudo: user.pseudo });
       }
     }
     catch (err) {
       console.error(err);
       res.json({ success: false });
-  } 
+    }
   })
 
   app.post('/setTheme', async (req, res) => {
     const { pseudo, theme } = req.body;
     console.log("dans /set theme")
     if (!pseudo || !theme) {
-        return res.status(400).json({ success: false, message: "Pseudo ou thème manquant" });
+      return res.status(400).json({ success: false, message: "Pseudo ou thème manquant" });
     }
 
     try {
-        const result = await User.updateOne(
-            { pseudo },
-            { $set: { theme } },
-        );
+      const result = await User.updateOne(
+        { pseudo },
+        { $set: { theme } },
+      );
 
-        if (result.modifiedCount === 1) {
-            res.json({ success: true });
-        } else {
-            res.json({ success: false, message: "Utilisateur non trouvé ou pas modifié" });
-        }
+      if (result.modifiedCount === 1) {
+        res.json({ success: true });
+      } else {
+        res.json({ success: false, message: "Utilisateur non trouvé ou pas modifié" });
+      }
     } catch (err) {
-        console.error("Erreur dans /setTheme :", err);
-        res.status(500).json({ success: false, message: "Erreur serveur" });
+      console.error("Erreur dans /setTheme :", err);
+      res.status(500).json({ success: false, message: "Erreur serveur" });
     }
   });
 
@@ -350,58 +359,58 @@ if (process.env.NODE_ENV === 'production') {
     console.log("dans /get theme")
     const { pseudo } = req.body;
     try {
-      const user = await User.findOne({pseudo});
-        if (user && user.theme) {
-            res.json({ success: true, theme: user.theme });
-        } else {
-            res.json({ success: false });
-        }
+      const user = await User.findOne({ pseudo });
+      if (user && user.theme) {
+        res.json({ success: true, theme: user.theme });
+      } else {
+        res.json({ success: false });
+      }
     } catch (err) {
-        console.error("Erreur lors de la récupération du thème :", err);
-        res.json({ success: false, message: "Erreur serveur" });
+      console.error("Erreur lors de la récupération du thème :", err);
+      res.json({ success: false, message: "Erreur serveur" });
     }
   });
 
   app.get('/Settings', (req, res) => {
     const pseudo = req.session.user.username
-    console.log("pseudo 23: ",pseudo)
+    console.log("pseudo 23: ", pseudo)
     res.sendFile(path.join(__dirname, '..', 'front-end', 'build', 'index.html'));
-  }); 
+  });
 
   app.post('/Settings', (req, res) => {
     const pseudo = req.session.user.username;
     console.log("Pseudo : ", pseudo);
 
     if (!pseudo) {
-        return res.status(400).json({ success: false, message: "Utilisateur non connecté" });
+      return res.status(400).json({ success: false, message: "Utilisateur non connecté" });
     }
 
-  // Récupérer le thème pour cet utilisateur
+    // Récupérer le thème pour cet utilisateur
     const theme = getUserTheme(pseudo); // Utiliser une fonction qui récupère le thème en fonction du pseudo
 
     res.json({
-        success: true,
-        pseudo: pseudo,
-        theme: theme,
+      success: true,
+      pseudo: pseudo,
+      theme: theme,
     });
   });
 
   app.get('/user-feelings', async (req, res) => {
     if (!req.session.user) {
-        return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
+      return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
     }
 
     try {
       const user = await User.findById(req.session.user._id);
       if (!user) {
-          return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        return res.status(404).json({ error: 'Utilisateur non trouvé' });
       }
       const theme = user.theme;
       const regles = user.responses.map(response => decrypt(response.regle));
       const decryptedFeelings = user.feelings.map(feeling => decrypt(feeling));
-      res.json({ feelings: decryptedFeelings,phrasesGratitude:user.responses,regles,theme});
+      res.json({ feelings: decryptedFeelings, phrasesGratitude: user.responses, regles, theme });
     } catch (err) {
-        res.status(500).json({ message: 'Erreur serveur lors de la récupération des émotions' });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des émotions' });
     }
   });
 
@@ -431,45 +440,45 @@ if (process.env.NODE_ENV === 'production') {
 
   app.post('/logout', (req, res) => {
     if (req.session.user) {
-        console.log("// Détruire la session actuelle !!! ")
-        req.session.destroy((err) => {
-            if (err) {
-                return res.status(500).json({ message: 'Erreur lors de la déconnexion' });
-            }
-            res.clearCookie('connect.sid', { path: '/' }); 
-            res.status(200).json({ message: 'Déconnexion réussie' });
-        });
+      console.log("// Détruire la session actuelle !!! ")
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ message: 'Erreur lors de la déconnexion' });
+        }
+        res.clearCookie('connect.sid', { path: '/' });
+        res.status(200).json({ message: 'Déconnexion réussie' });
+      });
     } else {
-        res.status(400).json({ message: 'Aucun utilisateur connecté' });
+      res.status(400).json({ message: 'Aucun utilisateur connecté' });
     }
   });
 
   app.get('/user-regles', async (req, res) => {
     if (!req.session.user) {
-        return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
+      return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
     }
 
     try {
-        const user = await User.findById(req.session.user._id);
-        if (!user) {
-            return res.status(404).json({ message: 'Utilisateur non trouvé' });
-        }
+      const user = await User.findById(req.session.user._id);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
 
-          const decryptedResponses = user.responses.map(response => {
-          const decryptedRegle = decrypt(response.regle);
-          const responseObj = response.toObject ? response.toObject() : response;
-    
-          return {
-            ...responseObj, 
-            regle:decryptedRegle
-    
-          };
-        });
+      const decryptedResponses = user.responses.map(response => {
+        const decryptedRegle = decrypt(response.regle);
+        const responseObj = response.toObject ? response.toObject() : response;
 
-        res.json(decryptedResponses);
+        return {
+          ...responseObj,
+          regle: decryptedRegle
+
+        };
+      });
+
+      res.json(decryptedResponses);
 
     } catch (err) {
-        res.status(500).json({ message: 'Erreur serveur lors de la récupération des règles' });
+      res.status(500).json({ message: 'Erreur serveur lors de la récupération des règles' });
     }
   });
 
@@ -486,7 +495,7 @@ if (process.env.NODE_ENV === 'production') {
 
       const feelingsDecrypted = user.feelings.map(f => f ? decrypt(f) : "");
 
-      res.json({ feelings: feelingsDecrypted,pseudo:user.pseudo });
+      res.json({ feelings: feelingsDecrypted, pseudo: user.pseudo });
     } catch (error) {
       console.error("Erreur dans /getFeelings :", error);
       res.status(500).json({ message: "Erreur serveur" });
@@ -498,41 +507,41 @@ if (process.env.NODE_ENV === 'production') {
       if (!req.session.user) {
         return res.status(401).json({ message: 'Non autorisé' });
       }
-  
+
       const { index, newFeeling } = req.body;
       const user = await User.findById(req.session.user._id);
-  
+
       if (!user) {
         return res.status(404).json({ message: 'Utilisateur non trouvé' });
       }
-  
+
       const indexFeelingChanged = index + 1;
       const feelingKey = 'feeling' + indexFeelingChanged;
-  
+
       console.log("feelingKey : ", feelingKey);
-  
+
       // Accéder dynamiquement aux propriétés de responses pour effacer l'historique uniquement du feeling modifié
       user.responses.forEach((response) => {
         response[feelingKey] = null;
       });
 
-      if (newFeeling !== null && newFeeling !== undefined && newFeeling !== '' ) {
+      if (newFeeling !== null && newFeeling !== undefined && newFeeling !== '') {
         const encryptedFeeling = encrypt(newFeeling);
         user.feelings[index] = encryptedFeeling;
       } else {
         // console.log('user.feeling[index] :',user.feelings[index])
         user.feelings[index] = encrypt("deleted"); // On met bien un vrai null
       }
-  
+
       // Crypter le nouveau feeling
       const encryptedFeeling = encrypt(newFeeling);
-  
+
       // Mettre à jour le feeling dans le tableau `feelings` de l'utilisateur
       user.feelings[index] = encryptedFeeling;
-  
+
       // Sauvegarder l'utilisateur après modification
       await user.save();
-  
+
       // Répondre avec succès
       res.status(200).json({ message: 'Feeling mis à jour et historique effacé avec succès' });
     } catch (err) {
@@ -540,7 +549,7 @@ if (process.env.NODE_ENV === 'production') {
       res.status(500).json({ message: "Erreur serveur" });
     }
   });
-  
+
   app.get('/user-history', async (req, res) => {
     if (!req.session.user) {
       return res.status(401).json({ message: 'Non autorisé : utilisateur non connecté' });
@@ -566,11 +575,11 @@ if (process.env.NODE_ENV === 'production') {
         return {
           ...responseObj,
           phraseGratitude: decryptedPhraseGratitude,
-          feeling1: decryptedfeeling1 ,
-          feeling2: decryptedfeeling2 ,
-          feeling3: decryptedfeeling3 ,
+          feeling1: decryptedfeeling1,
+          feeling2: decryptedfeeling2,
+          feeling3: decryptedfeeling3,
           feeling4: decryptedfeeling4,
-          regle:decryptedRegle,
+          regle: decryptedRegle,
         };
       });
 
@@ -589,5 +598,5 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
-    console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
+  console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
 });
